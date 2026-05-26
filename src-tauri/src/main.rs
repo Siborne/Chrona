@@ -71,6 +71,7 @@ fn main() {
             commands::sessions::get_trend_data,
             commands::sessions::get_heatmap_data,
             commands::sessions::get_cumulative_ranking,
+            commands::sessions::get_category_usage_for_date,
             commands::apps::get_apps,
             commands::apps::update_app,
             commands::apps::delete_app,

@@ -34,6 +34,12 @@ pub fn get_heatmap_data(year: i64, db: State<'_, Arc<Mutex<Database>>>) -> Resul
 }
 
 #[tauri::command]
+pub fn get_category_usage_for_date(date: String, db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<queries::CategoryUsageStat>, String> {
+    let db_lock = db.lock().map_err(|e| e.to_string())?;
+    queries::get_category_usage_for_date(db_lock.conn(), &date).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn get_cumulative_ranking(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<queries::AppUsageStat>, String> {
     let db_lock = db.lock().map_err(|e| e.to_string())?;
     queries::get_cumulative_ranking(db_lock.conn()).map_err(|e| e.to_string())

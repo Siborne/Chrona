@@ -23,6 +23,15 @@ impl Tracker {
             while running_clone.load(Ordering::Relaxed) {
                 match windows_api::get_foreground_info() {
                     Some(info) => {
+                        let is_excl = {
+                            let db_lock = db.lock().unwrap();
+                            is_excluded(&db_lock, &info.exe_path)
+                        };
+                        if is_excl {
+                            thread::sleep(Duration::from_secs(1));
+                            continue;
+                        }
+
                         let now = chrono::Local::now().timestamp_millis();
 
                         let is_idle = windows_api::is_idle(300);
@@ -118,6 +127,31 @@ impl Tracker {
             let _ = handle.join();
         }
     }
+}
+
+const SYSTEM_PROCESS_BLACKLIST: &[&str] = &[
+    "explorer.exe", "msrdc.exe", "searchhost.exe", "searchindexer.exe",
+    "runtimebroker.exe", "svchost.exe", "taskhostw.exe", "sihost.exe",
+    "shellexperiencehost.exe", "startmenuexperiencehost.exe", "lockapp.exe",
+    "textinputhost.exe", "ctfmon.exe", "dwm.exe", "csrss.exe", "winlogon.exe",
+    "fontdrvhost.exe", "lsass.exe", "services.exe", "wininit.exe",
+];
+
+fn is_excluded(db: &Database, exe_path: &str) -> bool {
+    let lower = exe_path.to_lowercase();
+    let filename = std::path::Path::new(&lower)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    // Check user-configured exclusions first
+    let user_excluded = db.get_setting("excluded_processes").unwrap_or_default();
+    if !user_excluded.is_empty() {
+        let excluded: Vec<&str> = user_excluded.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+        // If user has configured exclusions, use only those (they can remove defaults)
+        return excluded.iter().any(|e| filename.contains(e) || lower.contains(e));
+    }
+    // Fall back to built-in blacklist
+    SYSTEM_PROCESS_BLACKLIST.contains(&filename)
 }
 
 fn is_continuous_app(db: &Database, exe_path: &str) -> bool {

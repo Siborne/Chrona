@@ -32,7 +32,7 @@ export default function Timeline() {
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const dateStr = selectedDate.toISOString().split("T")[0];
+  const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
 
   useEffect(() => {
     invoke<Session[]>("get_sessions_by_date", { date: dateStr })

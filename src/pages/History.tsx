@@ -68,7 +68,7 @@ export default function History() {
   const { selectedDate, setSelectedDate } = useAppStore();
   const [stats, setStats] = useState<AppUsageStats[]>([]);
 
-  const dateStr = selectedDate.toISOString().split("T")[0];
+  const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
 
   useEffect(() => {
     invoke<AppUsageStats[]>("get_app_usage_for_date", { date: dateStr })

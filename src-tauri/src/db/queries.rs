@@ -120,18 +120,19 @@ pub fn get_active_session(conn: &Connection) -> Result<Option<SessionRow>> {
 }
 
 pub fn get_sessions_by_date(conn: &Connection, date: &str) -> Result<Vec<SessionRow>> {
-    let start = format!("{}T00:00:00", date);
-    let end = format!("{}T23:59:59", date);
+    let start_ts = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis())
+        .unwrap_or(0);
+    let end_ts = start_ts + 86400000;
 
     let mut stmt = conn.prepare(
         "SELECT id, app_id, title, started_at, ended_at, duration
          FROM sessions
-         WHERE datetime(started_at / 1000, 'unixepoch', 'localtime') >= ?1
-           AND datetime(started_at / 1000, 'unixepoch', 'localtime') <= ?2
+         WHERE started_at >= ?1 AND started_at < ?2
          ORDER BY started_at ASC"
     )?;
 
-    let rows = stmt.query_map(params![start, end], |row| {
+    let rows = stmt.query_map(params![start_ts, end_ts], |row| {
         Ok(SessionRow {
             id: row.get(0)?,
             app_id: row.get(1)?,
@@ -161,8 +162,8 @@ pub fn get_app_usage_for_date(conn: &Connection, date: &str) -> Result<Vec<AppUs
          FROM apps a
          LEFT JOIN sessions s ON s.app_id = a.id
             AND s.started_at >= ?1 AND s.started_at < ?2
-         WHERE COALESCE(SUM(s.duration), 0) > 0
          GROUP BY a.id
+         HAVING total_duration > 0
          ORDER BY total_duration DESC"
     )?;
 
@@ -287,6 +288,49 @@ pub fn get_cumulative_ranking(conn: &Connection) -> Result<Vec<AppUsageStat>> {
             app_color: row.get(2)?,
             total_duration: row.get(3)?,
             session_count: row.get(4)?,
+        })
+    })?.collect::<Result<Vec<_>>>()?;
+
+    Ok(rows)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CategoryUsageStat {
+    pub category_id: Option<i64>,
+    pub category_name: String,
+    pub category_color: Option<String>,
+    pub total_duration: i64,
+}
+
+pub fn get_category_usage_for_date(conn: &Connection, date: &str) -> Result<Vec<CategoryUsageStat>> {
+    let start_ts = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis())
+        .unwrap_or(0);
+    let end_ts = start_ts + 86400000;
+
+    let mut stmt = conn.prepare(
+        "SELECT c.id, c.name, c.color, COALESCE(SUM(s.duration), 0) as total_duration
+         FROM categories c
+         JOIN apps a ON a.category_id = c.id
+         JOIN sessions s ON s.app_id = a.id
+         WHERE s.started_at >= ?1 AND s.started_at < ?2 AND s.duration IS NOT NULL
+         GROUP BY c.id
+         HAVING total_duration > 0
+         UNION ALL
+         SELECT NULL, '未分类', NULL, COALESCE(SUM(s.duration), 0)
+         FROM apps a
+         JOIN sessions s ON s.app_id = a.id
+         WHERE a.category_id IS NULL AND s.started_at >= ?1 AND s.started_at < ?2 AND s.duration IS NOT NULL
+         HAVING COALESCE(SUM(s.duration), 0) > 0
+         ORDER BY total_duration DESC"
+    )?;
+
+    let rows = stmt.query_map(params![start_ts, end_ts], |row| {
+        Ok(CategoryUsageStat {
+            category_id: row.get(0)?,
+            category_name: row.get(1)?,
+            category_color: row.get(2)?,
+            total_duration: row.get(3)?,
         })
     })?.collect::<Result<Vec<_>>>()?;
 

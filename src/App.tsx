@@ -40,7 +40,7 @@ const PAGE_COMPONENTS: Record<PageId, React.FC> = {
 async function exportScreenshot() {
   const el = document.querySelector(".main-content") as HTMLElement;
   if (!el) return;
-  const canvas = await html2canvas(el, { backgroundColor: null, scale: 2 });
+  const canvas = await html2canvas(el, { backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--bg-primary").trim() || "#ffffff", scale: 2 });
   const link = document.createElement("a");
   link.download = `chrona-${new Date().toISOString().split("T")[0]}.png`;
   link.href = canvas.toDataURL("image/png");

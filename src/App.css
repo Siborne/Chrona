@@ -466,10 +466,10 @@ body {
 }
 
 .heatmap-cell.level-0 { background-color: var(--bg-tertiary); }
-.heatmap-cell.level-1 { background-color: #c6e48b; }
-.heatmap-cell.level-2 { background-color: #7bc96f; }
-.heatmap-cell.level-3 { background-color: #239a3b; }
-.heatmap-cell.level-4 { background-color: #196127; }
+.heatmap-cell.level-1 { background-color: #9be9a8; }
+.heatmap-cell.level-2 { background-color: #40c463; }
+.heatmap-cell.level-3 { background-color: #30a14e; }
+.heatmap-cell.level-4 { background-color: #216e39; }
 
 [data-theme="dark"] .heatmap-cell.level-1 { background-color: #0e4429; }
 [data-theme="dark"] .heatmap-cell.level-2 { background-color: #006d32; }
@@ -483,4 +483,19 @@ body {
 
 .page-body > * {
   animation: fadeIn 200ms ease;
+}
+
+/* Dark mode scrollbar */
+[data-theme="dark"] * {
+  scrollbar-color: var(--bg-tertiary) var(--bg-secondary);
+}
+[data-theme="dark"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+[data-theme="dark"] ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Dark mode number input spinner buttons */
+[data-theme="dark"] input[type="number"]::-webkit-inner-spin-button,
+[data-theme="dark"] input[type="number"]::-webkit-outer-spin-button {
+  filter: invert(1);
 }
