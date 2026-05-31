@@ -19,6 +19,7 @@ impl Tracker {
 
         let handle = thread::spawn(move || {
             let mut merger = merger::SessionMerger::new(merge_interval_secs);
+            let mut was_idle = false;
 
             while running_clone.load(Ordering::Relaxed) {
                 match windows_api::get_foreground_info() {
@@ -51,7 +52,40 @@ impl Tracker {
                                     now - active.started_at,
                                 );
                             }
+                            was_idle = true;
                             thread::sleep(Duration::from_secs(2));
+                            continue;
+                        }
+
+                        if was_idle {
+                            was_idle = false;
+                            let db_lock = db.lock().unwrap();
+                            let conn = db_lock.conn();
+                            let app_id = queries::get_or_create_app(
+                                conn,
+                                &info.exe_path,
+                                &info.exe_name,
+                            )
+                            .unwrap_or(0);
+                            match queries::insert_session(
+                                conn,
+                                app_id,
+                                info.window_title.as_deref(),
+                                now,
+                                None,
+                                None,
+                            ) {
+                                Ok(session_id) => {
+                                    merger.set_active(merger::ActiveSession {
+                                        session_id,
+                                        app_id,
+                                        started_at: now,
+                                        title: info.window_title.clone(),
+                                    });
+                                    merger.record_switch(app_id, now);
+                                }
+                                Err(e) => { log::error!("Failed to insert session on idle resume: {}", e); }
+                            }
                             continue;
                         }
 
@@ -68,6 +102,18 @@ impl Tracker {
                             if active.app_id == app_id && active.title == info.window_title {
                                 continue;
                             }
+                        }
+
+                        if let Some(existing_session_id) = merger.should_merge(app_id, now) {
+                            let started = merger.active.as_ref().unwrap().started_at;
+                            let _ = queries::update_session_end(
+                                conn,
+                                existing_session_id,
+                                now,
+                                now - started,
+                            );
+                            merger.record_switch(app_id, now);
+                            continue;
                         }
 
                         if let Some(active) = merger.active.take() {
@@ -94,6 +140,7 @@ impl Tracker {
                                     started_at: now,
                                     title: info.window_title.clone(),
                                 });
+                                merger.record_switch(app_id, now);
                             }
                             Err(e) => {
                                 log::error!("Failed to insert session: {}", e);
@@ -106,6 +153,17 @@ impl Tracker {
                 }
 
                 thread::sleep(Duration::from_secs(1));
+            }
+
+            if let Some(active) = merger.active.take() {
+                let db_lock = db.lock().unwrap();
+                let now = chrono::Local::now().timestamp_millis();
+                let _ = queries::update_session_end(
+                    db_lock.conn(),
+                    active.session_id,
+                    now,
+                    now - active.started_at,
+                );
             }
 
             log::info!("Tracker stopped");
@@ -143,15 +201,15 @@ fn is_excluded(db: &Database, exe_path: &str) -> bool {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("");
-    // Check user-configured exclusions first
+    if SYSTEM_PROCESS_BLACKLIST.contains(&filename) {
+        return true;
+    }
     let user_excluded = db.get_setting("excluded_processes").unwrap_or_default();
     if !user_excluded.is_empty() {
         let excluded: Vec<&str> = user_excluded.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
-        // If user has configured exclusions, use only those (they can remove defaults)
         return excluded.iter().any(|e| filename.contains(e) || lower.contains(e));
     }
-    // Fall back to built-in blacklist
-    SYSTEM_PROCESS_BLACKLIST.contains(&filename)
+    false
 }
 
 fn is_continuous_app(db: &Database, exe_path: &str) -> bool {
@@ -161,6 +219,11 @@ fn is_continuous_app(db: &Database, exe_path: &str) -> bool {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
+    let lower = exe_path.to_lowercase();
+    let filename = std::path::Path::new(&lower)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
     apps.iter()
-        .any(|a| exe_path.to_lowercase().contains(&a.to_lowercase()))
+        .any(|a| filename.contains(&a.to_lowercase()))
 }

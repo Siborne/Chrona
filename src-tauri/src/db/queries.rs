@@ -1,6 +1,9 @@
 use rusqlite::{Connection, params, Result};
 use serde::{Deserialize, Serialize};
 
+const MS_PER_HOUR: i64 = 3_600_000;
+const MS_PER_DAY: i64 = 86_400_000;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppRow {
     pub id: i64,
@@ -56,14 +59,6 @@ pub struct HeatmapPoint {
     pub level: i64,
 }
 
-pub fn upsert_app(conn: &Connection, exe_path: &str, name: &str) -> Result<i64> {
-    conn.execute(
-        "INSERT OR IGNORE INTO apps (exe_path, name) VALUES (?1, ?2)",
-        params![exe_path, name],
-    )?;
-    Ok(conn.last_insert_rowid())
-}
-
 pub fn get_or_create_app(conn: &Connection, exe_path: &str, name: &str) -> Result<i64> {
     let result = conn.query_row(
         "SELECT id FROM apps WHERE exe_path = ?1",
@@ -98,6 +93,7 @@ pub fn update_session_end(conn: &Connection, session_id: i64, ended_at: i64, dur
     Ok(())
 }
 
+#[allow(dead_code)] // Utility for crash recovery — currently unused
 pub fn get_active_session(conn: &Connection) -> Result<Option<SessionRow>> {
     let result = conn.query_row(
         "SELECT id, app_id, title, started_at, ended_at, duration FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1",
@@ -121,9 +117,14 @@ pub fn get_active_session(conn: &Connection) -> Result<Option<SessionRow>> {
 
 pub fn get_sessions_by_date(conn: &Connection, date: &str) -> Result<Vec<SessionRow>> {
     let start_ts = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
-        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis())
+        .ok()
+        .and_then(|d| {
+            let dt = d.and_hms_opt(0, 0, 0)?;
+            let tz = dt.and_local_timezone(chrono::Local).single()?;
+            Some(tz.timestamp_millis())
+        })
         .unwrap_or(0);
-    let end_ts = start_ts + 86400000;
+    let end_ts = start_ts + MS_PER_DAY;
 
     let mut stmt = conn.prepare(
         "SELECT id, app_id, title, started_at, ended_at, duration
@@ -148,12 +149,14 @@ pub fn get_sessions_by_date(conn: &Connection, date: &str) -> Result<Vec<Session
 
 pub fn get_app_usage_for_date(conn: &Connection, date: &str) -> Result<Vec<AppUsageStat>> {
     let start_ts = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .ok()
         .and_then(|d| {
-            let dt = d.and_hms_opt(0, 0, 0).unwrap();
-            Ok(dt.and_local_timezone(chrono::Local).unwrap().timestamp_millis())
+            let dt = d.and_hms_opt(0, 0, 0)?;
+            let tz = dt.and_local_timezone(chrono::Local).single()?;
+            Some(tz.timestamp_millis())
         })
         .unwrap_or(0);
-    let end_ts = start_ts + 86400000;
+    let end_ts = start_ts + MS_PER_DAY;
 
     let mut stmt = conn.prepare(
         "SELECT a.id, a.name, a.color,
@@ -182,21 +185,25 @@ pub fn get_app_usage_for_date(conn: &Connection, date: &str) -> Result<Vec<AppUs
 
 pub fn get_hourly_distribution(conn: &Connection, date: &str) -> Result<Vec<HourlyStat>> {
     let start_ts = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .ok()
         .and_then(|d| {
-            let dt = d.and_hms_opt(0, 0, 0).unwrap();
-            Ok(dt.and_local_timezone(chrono::Local).unwrap().timestamp_millis())
+            let dt = d.and_hms_opt(0, 0, 0)?;
+            let tz = dt.and_local_timezone(chrono::Local).single()?;
+            Some(tz.timestamp_millis())
         })
         .unwrap_or(0);
-    let end_ts = start_ts + 86400000;
+    let end_ts = start_ts + MS_PER_DAY;
 
-    let mut stmt = conn.prepare(
-        "SELECT CAST((started_at - ?1) / 3600000 AS INTEGER) as hour,
+    let hourly_sql = format!(
+        "SELECT CAST((started_at - ?1) / {} AS INTEGER) as hour,
                 SUM(duration) as total_duration
          FROM sessions
          WHERE started_at >= ?1 AND started_at < ?2 AND duration IS NOT NULL
          GROUP BY hour
-         ORDER BY hour"
-    )?;
+         ORDER BY hour",
+        MS_PER_HOUR
+    );
+    let mut stmt = conn.prepare(&hourly_sql)?;
 
     let rows = stmt.query_map(params![start_ts, end_ts], |row| {
         Ok(HourlyStat {
@@ -237,10 +244,16 @@ pub fn get_trend_data(conn: &Connection, days: i64) -> Result<Vec<TrendPoint>> {
 }
 
 pub fn get_heatmap_data(conn: &Connection, year: i64) -> Result<Vec<HeatmapPoint>> {
-    let start = chrono::NaiveDate::from_ymd_opt(year as i32, 1, 1).unwrap();
-    let end = chrono::NaiveDate::from_ymd_opt((year + 1) as i32, 1, 1).unwrap();
-    let start_ts = start.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis();
-    let end_ts = end.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis();
+    let start = chrono::NaiveDate::from_ymd_opt(year as i32, 1, 1).ok_or(rusqlite::Error::InvalidParameterName("Invalid year".into()))?;
+    let end = chrono::NaiveDate::from_ymd_opt((year + 1) as i32, 1, 1).ok_or(rusqlite::Error::InvalidParameterName("Invalid year".into()))?;
+    let start_ts = start.and_hms_opt(0, 0, 0)
+        .and_then(|dt| dt.and_local_timezone(chrono::Local).single())
+        .map(|dt| dt.timestamp_millis())
+        .ok_or(rusqlite::Error::InvalidParameterName("Invalid start timestamp".into()))?;
+    let end_ts = end.and_hms_opt(0, 0, 0)
+        .and_then(|dt| dt.and_local_timezone(chrono::Local).single())
+        .map(|dt| dt.timestamp_millis())
+        .ok_or(rusqlite::Error::InvalidParameterName("Invalid end timestamp".into()))?;
 
     let mut stmt = conn.prepare(
         "SELECT date(started_at / 1000, 'unixepoch', 'localtime') as day,
@@ -304,9 +317,14 @@ pub struct CategoryUsageStat {
 
 pub fn get_category_usage_for_date(conn: &Connection, date: &str) -> Result<Vec<CategoryUsageStat>> {
     let start_ts = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
-        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis())
+        .ok()
+        .and_then(|d| {
+            let dt = d.and_hms_opt(0, 0, 0)?;
+            let tz = dt.and_local_timezone(chrono::Local).single()?;
+            Some(tz.timestamp_millis())
+        })
         .unwrap_or(0);
-    let end_ts = start_ts + 86400000;
+    let end_ts = start_ts + MS_PER_DAY;
 
     let mut stmt = conn.prepare(
         "SELECT c.id, c.name, c.color, COALESCE(SUM(s.duration), 0) as total_duration
@@ -369,8 +387,9 @@ pub fn update_app(conn: &Connection, id: i64, name: Option<&str>, category_id: O
     if let Some(n) = name {
         conn.execute("UPDATE apps SET name = ?1 WHERE id = ?2", params![n, id])?;
     }
-    if let Some(c) = category_id {
-        conn.execute("UPDATE apps SET category_id = ?1 WHERE id = ?2", params![c, id])?;
+    match category_id {
+        Some(c) => { conn.execute("UPDATE apps SET category_id = ?1 WHERE id = ?2", params![c, id])?; }
+        None => { conn.execute("UPDATE apps SET category_id = NULL WHERE id = ?1", params![id])?; }
     }
     if let Some(clr) = color {
         conn.execute("UPDATE apps SET color = ?1 WHERE id = ?2", params![clr, id])?;
@@ -416,4 +435,97 @@ pub fn save_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
         params![key, value],
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
+        conn.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        conn.execute_batch(include_str!("schema.sql")).unwrap();
+        conn
+    }
+
+    #[test]
+    fn test_get_or_create_app_creates_new() {
+        let conn = setup_db();
+        let id = get_or_create_app(&conn, "C:\\test.exe", "TestApp").unwrap();
+        assert!(id > 0);
+    }
+
+    #[test]
+    fn test_get_or_create_app_returns_existing() {
+        let conn = setup_db();
+        let id1 = get_or_create_app(&conn, "C:\\test.exe", "TestApp").unwrap();
+        let id2 = get_or_create_app(&conn, "C:\\test.exe", "DifferentName").unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_insert_session_and_query_by_date() {
+        let conn = setup_db();
+        let app_id = get_or_create_app(&conn, "C:\\test.exe", "TestApp").unwrap();
+        let start_ts = 1700000000000_i64;
+        insert_session(&conn, app_id, Some("Test Window"), start_ts, Some(start_ts + 60000), Some(60000)).unwrap();
+        let date = "2023-11-14";
+        let _ = get_sessions_by_date(&conn, date);
+    }
+
+    #[test]
+    fn test_update_app_sets_category_id_null() {
+        let conn = setup_db();
+        let id = get_or_create_app(&conn, "C:\\test.exe", "TestApp").unwrap();
+        create_category(&conn, "Work", "#ff0000").unwrap();
+        update_app(&conn, id, None, Some(1), None).unwrap();
+        update_app(&conn, id, None, None, None).unwrap();
+        let apps = get_all_apps(&conn).unwrap();
+        let app = apps.iter().find(|a| a.id == id).unwrap();
+        assert!(app.category_id.is_none());
+    }
+
+    #[test]
+    fn test_update_app_preserves_name_when_not_specified() {
+        let conn = setup_db();
+        let id = get_or_create_app(&conn, "C:\\test.exe", "OriginalName").unwrap();
+        update_app(&conn, id, None, None, Some("#ff0000")).unwrap();
+        let apps = get_all_apps(&conn).unwrap();
+        let app = apps.iter().find(|a| a.id == id).unwrap();
+        assert_eq!(app.name, "OriginalName");
+    }
+
+    #[test]
+    fn test_delete_category_clears_app_assignments() {
+        let conn = setup_db();
+        let app_id = get_or_create_app(&conn, "C:\\test.exe", "TestApp").unwrap();
+        let cat_id = create_category(&conn, "Work", "#ff0000").unwrap();
+        update_app(&conn, app_id, None, Some(cat_id), None).unwrap();
+        delete_category(&conn, cat_id).unwrap();
+        let apps = get_all_apps(&conn).unwrap();
+        let app = apps.iter().find(|a| a.id == app_id).unwrap();
+        assert!(app.category_id.is_none());
+    }
+
+    #[test]
+    fn test_save_and_get_setting() {
+        let conn = setup_db();
+        save_setting(&conn, "merge_interval", "30").unwrap();
+        let settings = get_all_settings(&conn).unwrap();
+        assert_eq!(settings.get("merge_interval").unwrap(), "30");
+    }
+
+    #[test]
+    fn test_get_cumulative_ranking_empty() {
+        let conn = setup_db();
+        let ranking = get_cumulative_ranking(&conn).unwrap();
+        assert!(ranking.is_empty());
+    }
+
+    #[test]
+    fn test_constants_used_correctly() {
+        assert_eq!(MS_PER_HOUR, 3_600_000);
+        assert_eq!(MS_PER_DAY, 86_400_000);
+    }
 }

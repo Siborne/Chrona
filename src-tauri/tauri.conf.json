@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicholasrice/tauri/dev/crates/tauri-cli/schema.json",
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
   "productName": "Chrona",
   "version": "0.1.0",
   "identifier": "com.chrona.app",
@@ -24,13 +24,19 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
     },
     "trayIcon": {
       "id": "main-tray",
       "iconPath": "icons/icon.png",
       "iconAsTemplate": false,
       "tooltip": "Chrona"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": []
     }
   },
   "bundle": {

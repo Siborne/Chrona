@@ -27,7 +27,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  currentPage: "today",
+  currentPage: "overview",
   selectedDate: new Date(),
   theme: (localStorage.getItem("theme") as Theme) || "light",
   language: (localStorage.getItem("language") as Language) || "zh",

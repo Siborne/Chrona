@@ -76,4 +76,4 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
 
 export type Theme = "light" | "dark";
 export type Language = "zh" | "en";
-export type PageId = "today" | "timeline" | "history" | "stats" | "apps" | "settings";
+export type PageId = "overview" | "activity" | "stats" | "settings";

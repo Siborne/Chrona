@@ -6,6 +6,7 @@ mod tracker;
 
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
 fn main() {
     env_logger::init();
@@ -29,6 +30,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Arc::clone(&db))
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -53,12 +55,49 @@ fn main() {
                 }
             });
 
+            let main_window_tray = main_window.clone();
             let tray = app.tray_by_id("main-tray").unwrap();
-            let main_window_clone = main_window.clone();
+
+            let show_item = MenuItemBuilder::with_id("show", "显示 Chrona")
+                .build(app)
+                .expect("Failed to build show menu item");
+            let separator = tauri::menu::PredefinedMenuItem::separator(app)
+                .expect("Failed to build separator");
+            let quit_item = MenuItemBuilder::with_id("quit", "退出")
+                .build(app)
+                .expect("Failed to build quit menu item");
+            let menu = MenuBuilder::new(app)
+                .items(&[&show_item, &separator, &quit_item])
+                .build()
+                .expect("Failed to build tray menu");
+            tray.set_menu(Some(menu))
+                .expect("Failed to set tray menu");
+
             tray.on_tray_icon_event(move |_tray_icon, event| {
                 if let tauri::tray::TrayIconEvent::Click { .. } = event {
-                    let _ = main_window_clone.show();
-                    let _ = main_window_clone.set_focus();
+                    let _ = main_window_tray.show();
+                    let _ = main_window_tray.set_focus();
+                }
+            });
+
+            let tracker_for_menu = Arc::clone(&tracker_handle_clone);
+            tray.on_menu_event(move |app, event| {
+                match event.id().as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        if let Ok(mut guard) = tracker_for_menu.lock() {
+                            if let Some(ref mut t) = *guard {
+                                t.stop();
+                            }
+                        }
+                        app.exit(0);
+                    }
+                    _ => {}
                 }
             });
 
@@ -82,6 +121,8 @@ fn main() {
             commands::settings::save_setting,
             commands::settings::export_data,
             commands::settings::import_data,
+            commands::settings::set_auto_start,
+            commands::settings::get_auto_start,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

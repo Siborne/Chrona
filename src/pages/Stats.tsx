@@ -4,20 +4,27 @@ import type { TrendData, HeatmapData, AppUsageStats } from "../types";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-
-function formatDuration(ms: number): string {
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
+import { formatDuration } from "../utils";
+import LoadingSpinner from "../components/LoadingSpinner";
+import ErrorBanner from "../components/ErrorBanner";
 
 function TrendChart({ days }: { days: number }) {
   const [data, setData] = useState<TrendData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    invoke<TrendData[]>("get_trend_data", { days }).then(setData).catch(console.error);
-  }, [days]);
+    setLoading(true);
+    setError(null);
+    invoke<TrendData[]>("get_trend_data", { days })
+      .then(setData)
+      .catch(e => { console.error("get_trend_data failed:", e); setError(e.toString()); })
+      .finally(() => setLoading(false));
+  }, [days, refreshKey]);
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorBanner message={error} onRetry={() => setRefreshKey(k => k + 1)} />;
 
   // Pivot: date → { date, appName: duration }
   const dates = [...new Set(data.map((d) => d.date))].sort();
@@ -31,7 +38,7 @@ function TrendChart({ days }: { days: number }) {
     return row;
   });
 
-  const COLORS = ["#6366f1","#f59e0b","#22c55e","#ef4444","#3b82f6","#ec4899","#14b8a6","#f97316"];
+  const COLORS = ["#B4A0FF","#E8A0FF","#A0C0FF","#FFB6C1","#C8A0E0","#D8B0FF","#E0B0F0","#C0B0E8"];
 
   if (pivoted.length === 0) return <div className="empty-state"><p>暂无数据</p></div>;
 
@@ -53,10 +60,21 @@ function TrendChart({ days }: { days: number }) {
 function Heatmap() {
   const year = new Date().getFullYear();
   const [data, setData] = useState<HeatmapData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    invoke<HeatmapData[]>("get_heatmap_data", { year }).then(setData).catch(console.error);
-  }, [year]);
+    setLoading(true);
+    setError(null);
+    invoke<HeatmapData[]>("get_heatmap_data", { year })
+      .then(setData)
+      .catch(e => { console.error("get_heatmap_data failed:", e); setError(e.toString()); })
+      .finally(() => setLoading(false));
+  }, [year, refreshKey]);
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorBanner message={error} onRetry={() => setRefreshKey(k => k + 1)} />;
 
   const dataMap = new Map(data.map((d) => [d.date, d]));
 
@@ -105,23 +123,36 @@ function Heatmap() {
 export default function Stats() {
   const [days, setDays] = useState(7);
   const [ranking, setRanking] = useState<AppUsageStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    invoke<AppUsageStats[]>("get_cumulative_ranking").then(setRanking).catch(console.error);
-  }, []);
+    setLoading(true);
+    setError(null);
+    invoke<AppUsageStats[]>("get_cumulative_ranking")
+      .then(setRanking)
+      .catch(e => { console.error("get_cumulative_ranking failed:", e); setError(e.toString()); })
+      .finally(() => setLoading(false));
+  }, [refreshKey]);
 
   return (
     <>
       <div className="page-header">
-        <h2>数据统计</h2>
+        <h2>统计</h2>
       </div>
       <div className="page-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="card">
+          <div className="card-title">年度活跃热力图 · {new Date().getFullYear()}</div>
+          <Heatmap />
+        </div>
+
         <div className="card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div className="card-title" style={{ margin: 0 }}>使用趋势</div>
             <div style={{ display: "flex", gap: 4 }}>
               {[7, 30, 365].map((d) => (
-                <button key={d} className={`btn btn-sm ${days === d ? "btn-primary" : ""}`} onClick={() => setDays(d)}>
+                <button key={d} className={`btn btn-sm ${days === d ? "btn-primary" : ""}`} onClick={() => setDays(d)} aria-label={d === 365 ? "近一年" : `近${d}天`}>
                   {d === 365 ? "近一年" : `近${d}天`}
                 </button>
               ))}
@@ -131,40 +162,39 @@ export default function Stats() {
         </div>
 
         <div className="card">
-          <div className="card-title">年度活跃热力图 · {new Date().getFullYear()}</div>
-          <Heatmap />
-        </div>
-
-        <div className="card">
           <div className="card-title">累计使用排行</div>
-          {ranking.length === 0 ? (
-            <div className="empty-state"><p>暂无数据</p></div>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>应用</th>
-                  <th>累计时长</th>
-                  <th>会话数</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ranking.map((r, i) => (
-                  <tr key={r.app_id}>
-                    <td style={{ color: "var(--text-muted)", width: 32 }}>{i + 1}</td>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span className="color-dot" style={{ backgroundColor: r.app_color }} />
-                        {r.app_name}
-                      </div>
-                    </td>
-                    <td className="duration-text">{formatDuration(r.total_duration)}</td>
-                    <td style={{ color: "var(--text-muted)" }}>{r.session_count}</td>
+          {loading && <LoadingSpinner />}
+          {error && <ErrorBanner message={error} onRetry={() => setRefreshKey(k => k + 1)} />}
+          {!loading && !error && (
+            ranking.length === 0 ? (
+              <div className="empty-state"><p>暂无数据</p></div>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>应用</th>
+                    <th>累计时长</th>
+                    <th>会话数</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {ranking.map((r, i) => (
+                    <tr key={r.app_id}>
+                      <td style={{ color: "var(--text-muted)", width: 32 }}>{i + 1}</td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span className="color-dot" style={{ backgroundColor: r.app_color }} />
+                          {r.app_name}
+                        </div>
+                      </td>
+                      <td className="duration-text">{formatDuration(r.total_duration)}</td>
+                      <td style={{ color: "var(--text-muted)" }}>{r.session_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
           )}
         </div>
       </div>

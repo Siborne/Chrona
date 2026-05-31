@@ -3,7 +3,7 @@ import { useAppStore } from "../store";
 import type { App, Category } from "../types";
 import { Trash2, Pencil, Plus } from "lucide-react";
 
-const PRESET_COLORS = ["#6366f1","#f59e0b","#22c55e","#ef4444","#3b82f6","#ec4899","#14b8a6","#f97316","#8b5cf6","#64748b"];
+const PRESET_COLORS = ["#B4A0FF","#E8A0FF","#A0C0FF","#FFB6C1","#C8A0E0","#D8B0FF","#E0B0F0","#C0B0E8","#D0C0F0","#B8C8E8"];
 
 function EditAppModal({ app, categories, onSave, onClose }: {
   app: App;
@@ -16,8 +16,8 @@ function EditAppModal({ app, categories, onSave, onClose }: {
   const [catId, setCatId] = useState<number | null>(app.category_id);
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-      <div className="card" style={{ width: 360, boxShadow: "var(--shadow-lg)" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} role="dialog" aria-modal="true" aria-label="编辑应用">
+      <div className="card" style={{ width: 360, boxShadow: "var(--shadow-float)" }}>
         <div className="card-title">编辑应用</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
@@ -35,9 +35,9 @@ function EditAppModal({ app, categories, onSave, onClose }: {
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>颜色</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {PRESET_COLORS.map((c) => (
-                <div key={c} onClick={() => setColor(c)} style={{ width: 24, height: 24, borderRadius: "50%", backgroundColor: c, cursor: "pointer", outline: color === c ? "2px solid var(--text-primary)" : "none", outlineOffset: 2 }} />
+                <button key={c} onClick={() => setColor(c)} aria-label={`选择颜色 ${c}`} style={{ width: 24, height: 24, borderRadius: "50%", backgroundColor: c, cursor: "pointer", outline: color === c ? "2px solid var(--text-primary)" : "none", outlineOffset: 2, border: "none", padding: 0 }} />
               ))}
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} style={{ width: 24, height: 24, border: "none", padding: 0, cursor: "pointer", borderRadius: "50%" }} />
+              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="自定义颜色" style={{ width: 24, height: 24, border: "none", padding: 0, cursor: "pointer", borderRadius: "50%" }} />
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
@@ -54,7 +54,7 @@ export default function AppMgmt() {
   const { apps, categories, updateApp, deleteApp, createCategory, deleteCategory } = useAppStore();
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const [newCatName, setNewCatName] = useState("");
-  const [newCatColor, setNewCatColor] = useState("#6366f1");
+  const [newCatColor, setNewCatColor] = useState("#B4A0FF");
   const [search, setSearch] = useState("");
 
   const filtered = apps.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()));
@@ -78,7 +78,7 @@ export default function AppMgmt() {
         <div className="card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div className="card-title" style={{ margin: 0 }}>应用列表 ({apps.length})</div>
-            <input className="input" style={{ width: 200 }} placeholder="搜索应用..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input className="input" style={{ width: 200 }} placeholder="搜索应用..." value={search} onChange={(e) => setSearch(e.target.value)} aria-label="搜索应用" />
           </div>
           {filtered.length === 0 ? (
             <div className="empty-state"><p>暂无应用记录</p></div>
@@ -107,8 +107,8 @@ export default function AppMgmt() {
                       <td style={{ color: "var(--text-muted)", fontSize: 12, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{app.exe_path}</td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button className="btn btn-sm" onClick={() => setEditingApp(app)} title="编辑"><Pencil size={14} /></button>
-                          <button className="btn btn-sm btn-danger" onClick={() => deleteApp(app.id)} title="删除"><Trash2 size={14} /></button>
+                          <button className="btn btn-sm" onClick={() => setEditingApp(app)} title="编辑" aria-label="编辑"><Pencil size={14} /></button>
+                          <button className="btn btn-sm btn-danger" onClick={() => deleteApp(app.id)} title="删除" aria-label="删除"><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
