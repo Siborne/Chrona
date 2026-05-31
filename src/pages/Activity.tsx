@@ -70,14 +70,16 @@ export default function Activity() {
         {!loading && !error && (
           <div style={{ display: "flex", gap: 24 }}>
             {/* Left: Calendar */}
-            <div className="card" style={{ width: 280, flexShrink: 0, alignSelf: "flex-start" }}>
+            <div className="card" style={{ width: 280, flexShrink: 0, alignSelf: "flex-start", padding: 16 }}>
+              <div className="card-glow" />
               <Calendar selected={selectedDate} onSelect={setSelectedDate} />
             </div>
 
             {/* Right: Timeline + App list */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Gantt Timeline */}
-              <div className="card" style={{ overflow: "hidden" }}>
+              <div className="card" style={{ overflow: "hidden", padding: 16 }}>
+                <div className="card-glow" />
                 <div className="card-title">时间线</div>
                 {sessions.length === 0 ? (
                   <div className="empty-state" style={{ padding: "30px 20px" }}><p>暂无数据</p></div>
@@ -148,18 +150,19 @@ export default function Activity() {
 
               {/* App usage list */}
               <div className="card">
+                <div className="card-glow" />
                 <div className="card-title">当日应用使用 · {formatDuration(total)} 总计</div>
                 {stats.length === 0 ? (
                   <div className="empty-state" style={{ padding: "30px 20px" }}><p>当天无记录</p></div>
                 ) : (
                   <div>
                     {stats.map((s) => (
-                      <div key={s.app_id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                        <span className="color-dot" style={{ backgroundColor: s.app_color }} />
-                        <span style={{ flex: 1, fontSize: 13 }}>{s.app_name}</span>
-                        <span className="duration-text" style={{ fontSize: 13 }}>{formatDuration(s.total_duration)}</span>
+                      <div key={s.app_id} className="session-row">
+                        <span className="color-dot" style={{ backgroundColor: s.app_color, color: s.app_color }} />
+                        <span className="session-app">{s.app_name}</span>
+                        <span className="duration-mono">{formatDuration(s.total_duration)}</span>
                         <div className="progress-bar" style={{ width: 80 }}>
-                          <div className="progress-bar-fill" style={{ width: `${total > 0 ? (s.total_duration / total) * 100 : 0}%`, backgroundColor: s.app_color }} />
+                          <div className="progress-bar-fill" style={{ width: `${total > 0 ? (s.total_duration / total) * 100 : 0}%`, background: `linear-gradient(90deg, ${s.app_color}, var(--accent-soft))` }} />
                         </div>
                       </div>
                     ))}

@@ -132,3 +132,9 @@ pub fn get_auto_start() -> Result<bool, String> {
         Err(_) => Ok(false),
     }
 }
+
+#[tauri::command]
+pub fn reset_data(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
+    let db_lock = db.lock().map_err(|e| e.to_string())?;
+    db_lock.reset_data().map_err(|e| e.to_string())
+}

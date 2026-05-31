@@ -23,7 +23,9 @@ interface AppState {
   updateApp: (id: number, updates: Partial<App>) => Promise<void>;
   createCategory: (name: string, color: string) => Promise<void>;
   deleteCategory: (id: number) => Promise<void>;
+  updateCategory: (id: number, name: string, color: string) => Promise<void>;
   deleteApp: (id: number) => Promise<void>;
+  ensureAppColors: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -124,12 +126,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  updateCategory: async (id, name, color) => {
+    try {
+      await invoke("update_category", { id, name, color });
+      await get().loadCategories();
+    } catch (e) {
+      console.error("Failed to update category:", e);
+    }
+  },
+
   deleteApp: async (id) => {
     try {
       await invoke("delete_app", { id });
       await get().loadApps();
     } catch (e) {
       console.error("Failed to delete app:", e);
+    }
+  },
+
+  ensureAppColors: async () => {
+    try {
+      const count = await invoke<number>("ensure_app_colors");
+      if (count > 0) await get().loadApps();
+    } catch (e) {
+      console.error("Failed to assign app colors:", e);
     }
   },
 }));

@@ -414,6 +414,42 @@ pub fn delete_category(conn: &Connection, id: i64) -> Result<()> {
     Ok(())
 }
 
+pub fn update_category(conn: &Connection, id: i64, name: Option<&str>, color: Option<&str>) -> Result<()> {
+    if let Some(n) = name {
+        conn.execute("UPDATE categories SET name = ?1 WHERE id = ?2", params![n, id])?;
+    }
+    if let Some(c) = color {
+        conn.execute("UPDATE categories SET color = ?1 WHERE id = ?2", params![c, id])?;
+    }
+    Ok(())
+}
+
+/// Assign random colors to apps that have no color set.
+/// Returns the number of apps updated.
+pub fn assign_missing_app_colors(conn: &Connection) -> Result<usize> {
+    let palette = [
+        "#6366F1", "#818CF8", "#F43F5E", "#10B981", "#06B6D4",
+        "#D97706", "#8B5CF6", "#EF4444", "#F59E0B", "#EC4899",
+        "#14B8A6", "#3B82F6", "#F97316", "#22D3EE", "#A855F7",
+    ];
+
+    let mut stmt = conn.prepare("SELECT id FROM apps WHERE color IS NULL OR color = ''")?;
+    let ids: Vec<i64> = stmt.query_map([], |row| row.get(0))?
+        .collect::<Result<Vec<_>>>()?;
+
+    let mut count = 0;
+    // Deterministic: use hash of id to pick palette index
+    for id in &ids {
+        let idx = (*id as usize).wrapping_mul(2654435761) % palette.len();
+        conn.execute(
+            "UPDATE apps SET color = ?1 WHERE id = ?2",
+            params![palette[idx], id],
+        )?;
+        count += 1;
+    }
+    Ok(count)
+}
+
 pub fn get_all_settings(conn: &Connection) -> Result<std::collections::HashMap<String, String>> {
     let mut stmt = conn.prepare("SELECT key, value FROM settings")?;
     let mut map = std::collections::HashMap::new();

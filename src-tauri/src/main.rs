@@ -117,12 +117,15 @@ fn main() {
             commands::apps::get_categories,
             commands::apps::create_category,
             commands::apps::delete_category,
+            commands::apps::update_category,
+            commands::apps::ensure_app_colors,
             commands::settings::get_all_settings,
             commands::settings::save_setting,
             commands::settings::export_data,
             commands::settings::import_data,
             commands::settings::set_auto_start,
             commands::settings::get_auto_start,
+            commands::settings::reset_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

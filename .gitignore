@@ -27,5 +27,12 @@ Thumbs.db
 .claude/
 .sisyphus/
 
+# Python
+__pycache__/
+*.pyc
+
+# Design prototypes
+.claude/design-v0/
+
 # Reference
 reference/

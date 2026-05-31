@@ -4,6 +4,7 @@ import { useAppStore } from "../store";
 import { TrendingUp, Calendar, BarChart3, Trophy, Clock, List } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Legend, BarChart, Bar } from "recharts";
 import { formatDuration, MS_PER_HOUR } from "../utils";
+import { getChartColors } from "../colorThemes";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 import type { Session, TrendData, HeatmapData, AppUsageStats } from "../types";
@@ -19,6 +20,24 @@ interface CategoryUsageStat {
 type TabId = "today" | "7" | "14" | "30";
 
 // ── Helpers ───────────────────────────────────────────────
+// 稳定调色板：基于应用名称哈希分配颜色，同一应用始终同色
+const APP_COLORS = [
+  "#6366F1", "#818CF8", "#F43F5E", "#10B981", "#06B6D4",
+  "#D97706", "#8B5CF6", "#EF4444", "#F59E0B", "#EC4899",
+  "#14B8A6", "#3B82F6", "#F97316", "#22D3EE", "#A855F7",
+];
+
+function hashName(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function appColor(name: string, existing?: string | null): string {
+  if (existing && existing.length > 0) return existing;
+  return APP_COLORS[hashName(name) % APP_COLORS.length];
+}
+
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -62,16 +81,19 @@ function HourlyChart({ date }: { date: string }) {
             const height = hourData ? (hourData.duration / maxDuration) * 100 : 0;
             return (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%" }}>
-                <div style={{
-                  height: `${Math.max(height, height > 0 ? 2 : 0)}%`,
-                  backgroundColor: "var(--accent)", borderRadius: "2px 2px 0 0",
-                  opacity: height > 0 ? 0.85 : 0.15, minHeight: height > 0 ? 2 : 0,
-                }} title={`${i}:00 — ${formatDuration(hourData?.duration || 0)}`} />
+                <div
+                  className={`hourly-bar ${height === 0 ? 'empty' : ''}`}
+                  style={{
+                    height: `${Math.max(height, height > 0 ? 3 : 0)}%`,
+                    minHeight: height > 0 ? 3 : 3,
+                  }}
+                  title={`${i}:00 — ${formatDuration(hourData?.duration || 0)}`}
+                />
               </div>
             );
           })}
         </div>
-        <div style={{ display: "flex", borderTop: "1px solid var(--border)", paddingTop: 4 }}>
+        <div style={{ display: "flex", borderTop: "1px solid var(--hairline)", paddingTop: 4 }}>
           {Array.from({ length: 24 }, (_, i) => (
             <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 9, color: "var(--text-muted)" }}>{i % 6 === 0 ? `${i}` : ""}</div>
           ))}
@@ -96,7 +118,7 @@ function CategoryBars({ data }: { data: CategoryUsageStat[] }) {
             <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{formatDuration(cat.total_duration)}</span>
           </div>
           <div className="progress-bar">
-            <div className="progress-bar-fill" style={{ width: `${total > 0 ? (cat.total_duration / total) * 100 : 0}%`, backgroundColor: cat.category_color ?? "#94a3b8" }} />
+            <div className="progress-bar-fill" style={{ width: `${total > 0 ? (cat.total_duration / total) * 100 : 0}%`, background: `linear-gradient(90deg, ${cat.category_color ?? "#94a3b8"}, var(--accent-soft))` }} />
           </div>
         </div>
       ))}
@@ -123,7 +145,7 @@ function TopAppsList({ stats, total }: { stats: AppUsageStats[]; total: number }
             </div>
           </div>
           <div className="progress-bar">
-            <div className="progress-bar-fill" style={{ width: `${total > 0 ? (app.total_duration / total) * 100 : 0}%`, backgroundColor: app.app_color }} />
+            <div className="progress-bar-fill" style={{ width: `${total > 0 ? (app.total_duration / total) * 100 : 0}%`, background: `linear-gradient(90deg, ${app.app_color}, var(--accent-soft))` }} />
           </div>
         </div>
       ))}
@@ -141,14 +163,14 @@ function RecentSessions({ sessions, apps }: { sessions: Session[]; apps: { id: n
         const app = appMap.get(s.app_id);
         const dur = s.duration ?? (s.ended_at ? s.ended_at - s.started_at : Date.now() - s.started_at);
         return (
-          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < recent.length - 1 ? "1px solid var(--border)" : "none" }}>
-            <span className="color-dot" style={{ backgroundColor: app?.color ?? "#888" }} />
-            <span style={{ flex: 1, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div key={s.id} className="session-row">
+            <span className="color-dot" style={{ backgroundColor: app?.color ?? "#888", color: app?.color ?? "#888" }} />
+            <span className="session-app">
               {app?.name ?? "Unknown"}
-              {s.title && <span style={{ color: "var(--text-muted)", marginLeft: 6, fontSize: 12 }}>— {s.title}</span>}
+              {s.title && <span className="session-title">— {s.title}</span>}
             </span>
-            <span style={{ fontSize: 12, color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{formatTime(s.started_at)}</span>
-            <span className="duration-text" style={{ fontSize: 12, color: "var(--text-secondary)", minWidth: 50, textAlign: "right" }}>{formatDuration(dur)}</span>
+            <span className="session-time">{formatTime(s.started_at)}</span>
+            <span className="duration-mono">{formatDuration(dur)}</span>
           </div>
         );
       })}
@@ -202,7 +224,7 @@ function AppTrendChart({ days }: { days: number }) {
 
   const dates = [...new Set(data.map((d) => d.date))].sort();
   const appNames = [...new Set(data.map((d) => d.app_name))].slice(0, 6);
-  const COLORS = ["#B4A0FF", "#E8A0FF", "#A0C0FF", "#FFB6C1", "#C8A0E0", "#D8B0FF"];
+  const COLORS = getChartColors();
 
   const pivoted = dates.map((date) => {
     const row: Record<string, string | number> = { date: date.slice(5) };
@@ -251,16 +273,16 @@ function WeeklySummary({ days }: { days: number }) {
   const maxDay = data.reduce((max, d) => d.total > max.total ? d : max, { date: "", total: 0 });
 
   return (
-    <div className="grid-3">
-      <div className="card">
+    <div className="stat-row">
+      <div className="stat-card">
         <div className="stat-value">{formatDuration(totalMs)}</div>
         <div className="stat-label">累计使用 · {days} 天</div>
       </div>
-      <div className="card">
+      <div className="stat-card">
         <div className="stat-value">{formatDuration(avgMs)}</div>
         <div className="stat-label">日均使用</div>
       </div>
-      <div className="card">
+      <div className="stat-card">
         <div className="stat-value">{maxDay.date ? maxDay.date.slice(5) : "—"}</div>
         <div className="stat-label">最活跃 · {maxDay.date ? formatDuration(maxDay.total) : ""}</div>
       </div>
@@ -310,7 +332,7 @@ export default function Overview() {
     setViewDate(d);
   }
 
-  const appPieData = stats.map((s) => ({ name: s.app_name, value: s.total_duration, color: s.app_color }));
+  const appPieData = stats.map((s) => ({ name: s.app_name, value: s.total_duration, color: appColor(s.app_name, s.app_color) }));
 
   const TABS: { id: TabId; label: string }[] = [
     { id: "today", label: "今天" },
@@ -353,32 +375,33 @@ export default function Overview() {
             {error && <ErrorBanner message={error} />}
             {!loading && !error && (
               <>
-                <div className="grid-3" style={{ marginBottom: 16 }}>
-                  <div className="card">
+                <div className="stat-row">
+                  <div className="stat-card">
                     <div className="stat-value">{formatDuration(totalTime)}</div>
                     <div className="stat-label">总使用时长</div>
                   </div>
-                  <div className="card">
+                  <div className="stat-card">
                     <div className="stat-value">{stats.length}</div>
                     <div className="stat-label">活跃应用数</div>
                   </div>
-                  <div className="card">
+                  <div className="stat-card">
                     <div className="stat-value">{sessions.length}</div>
                     <div className="stat-label">记录会话数</div>
                   </div>
                 </div>
 
-                <div className="grid-2" style={{ marginBottom: 16 }}>
-                  <div className="card">
+                <div className="bento" style={{ marginBottom: 12 }}>
+                  <div className="card span-5">
+                    <div className="card-glow" />
                     <div className="card-title">应用占比</div>
                     {appPieData.length === 0 ? (
                       <div className="empty-state"><Clock /><p>暂无使用记录</p></div>
                     ) : (
-                      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                        <div style={{ width: 140, flexShrink: 0 }}>
-                          <ResponsiveContainer width={140} height={140}>
+                      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                        <div style={{ width: 120, flexShrink: 0 }}>
+                          <ResponsiveContainer width={120} height={120}>
                             <PieChart>
-                              <Pie data={appPieData} dataKey="value" cx="50%" cy="50%" innerRadius={36} outerRadius={60}>
+                              <Pie data={appPieData} dataKey="value" cx="50%" cy="50%" innerRadius={32} outerRadius={54}>
                                 {appPieData.map((d) => <Cell key={d.name} fill={d.color} />)}
                               </Pie>
                               <ReTooltip formatter={(v: number) => formatDuration(v)} />
@@ -387,37 +410,67 @@ export default function Overview() {
                         </div>
                         <div style={{ flex: 1, overflowY: "auto", maxHeight: 180 }}>
                           {appPieData.slice(0, 6).map((d) => (
-                            <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
-                              <span className="color-dot" style={{ backgroundColor: d.color }} />
-                              <span style={{ flex: 1, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
-                              <span className="duration-text" style={{ fontSize: 12 }}>{formatDuration(d.value)}</span>
-                              <span style={{ fontSize: 11, color: "var(--text-muted)", width: 36, textAlign: "right" }}>{totalTime > 0 ? `${Math.round((d.value / totalTime) * 100)}%` : ""}</span>
+                            <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: "1px solid var(--hairline)" }}>
+                              <span className="color-dot" style={{ backgroundColor: d.color, color: d.color }} />
+                              <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
+                              <span className="duration-mono">{formatDuration(d.value)}</span>
+                              <span style={{ fontSize: 10, color: "var(--text-muted)", width: 30, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{totalTime > 0 ? `${Math.round((d.value / totalTime) * 100)}%` : ""}</span>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="card">
+                  <div className="card span-4">
+                    <div className="card-glow" />
                     <div className="card-title">分类分布</div>
                     <CategoryBars data={catStats} />
                   </div>
-                </div>
-
-                <div className="grid-2" style={{ marginBottom: 16 }}>
-                  <div className="card">
-                    <div className="card-title">24小时分布</div>
-                    <HourlyChart date={dateStr} />
-                  </div>
-                  <div className="card">
+                  <div className="card span-3">
+                    <div className="card-glow" />
                     <div className="card-title">应用排行</div>
                     <TopAppsList stats={stats} total={totalTime} />
                   </div>
                 </div>
 
-                <div className="card">
-                  <div className="card-title">最近会话</div>
-                  <RecentSessions sessions={sessions} apps={apps} />
+                <div className="bento" style={{ marginBottom: 12 }}>
+                  <div className="card span-7">
+                    <div className="card-glow" />
+                    <div className="card-title">24小时分布</div>
+                    <HourlyChart date={dateStr} />
+                  </div>
+                  <div className="card span-5">
+                    <div className="card-glow" />
+                    <div className="card-title">今日洞察</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--accent-dim)", borderRadius: "var(--radius-sm)", border: "1px solid rgba(99,102,241,0.1)" }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 6, background: "linear-gradient(135deg, var(--accent), var(--accent-soft))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)" }}>{catStats[0]?.category_name || "开发"}时间占比最高</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>今日主要专注领域</div>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(255,255,255,0.02)", borderRadius: "var(--radius-sm)", border: "1px solid var(--hairline)" }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 6, background: "linear-gradient(135deg, var(--accent-soft), var(--accent))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)" }}>专注时段分析</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>查看24小时分布了解峰值</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bento" style={{ marginBottom: 12 }}>
+                  <div className="card span-12">
+                    <div className="card-glow" />
+                    <div className="card-title">最近会话</div>
+                    <RecentSessions sessions={sessions} apps={apps} />
+                  </div>
                 </div>
               </>
             )}
@@ -425,12 +478,14 @@ export default function Overview() {
         ) : (
           <>
             <WeeklySummary days={multiDays} />
-            <div className="grid-2" style={{ marginTop: 16, marginBottom: 16 }}>
-              <div className="card">
+            <div className="bento" style={{ marginTop: 12, marginBottom: 12 }}>
+              <div className="card span-6">
+                <div className="card-glow" />
                 <div className="card-title">每日使用量</div>
                 <DailyBarChart days={multiDays} />
               </div>
-              <div className="card">
+              <div className="card span-6">
+                <div className="card-glow" />
                 <div className="card-title">应用使用趋势</div>
                 <AppTrendChart days={multiDays} />
               </div>

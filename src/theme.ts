@@ -8,12 +8,12 @@ export interface TimeTheme {
 }
 
 const TIME_THEMES: Record<TimePeriod, TimeTheme> = {
-  dawn:     { period: "dawn",     label: "凌晨好", emoji: "\u{1F305}", gradient: ["#C8A0FF", "#D0A8F0", "#E0A0F0"] },
-  morning:  { period: "morning",  label: "早上好", emoji: "☀️", gradient: ["#B8A8FF", "#C8B0F8", "#E0B0F0"] },
-  afternoon:{ period: "afternoon",label: "下午好", emoji: "\u{1F31E}",  gradient: ["#B4A0FF", "#C8A0F8", "#E8A0FF"] },
-  evening:  { period: "evening",  label: "晚上好", emoji: "\u{1F306}", gradient: ["#A8A0F0", "#B8A0E8", "#D8A0F0"] },
-  night:    { period: "night",    label: "夜深了", emoji: "\u{1F319}", gradient: ["#A0A0E8", "#B0A0E0", "#D0A0F0"] },
-  late:     { period: "late",     label: "夜深了", emoji: "⭐",     gradient: ["#98A0E0", "#A8A0D8", "#C8A0E8"] },
+  dawn:      { period: "dawn",      label: "凌晨好", emoji: "\u{1F305}", gradient: ["#818CF8", "#A5B4FC", "#C7D2FE"] },
+  morning:   { period: "morning",   label: "早上好", emoji: "☀️",       gradient: ["#6366F1", "#818CF8", "#A5B4FC"] },
+  afternoon: { period: "afternoon", label: "下午好", emoji: "\u{1F31E}",  gradient: ["#4F46E5", "#6366F1", "#818CF8"] },
+  evening:   { period: "evening",   label: "晚上好", emoji: "\u{1F306}", gradient: ["#4338CA", "#4F46E5", "#6366F1"] },
+  night:     { period: "night",     label: "夜深了", emoji: "\u{1F319}", gradient: ["#3730A3", "#4338CA", "#4F46E5"] },
+  late:      { period: "late",      label: "夜深了", emoji: "⭐",      gradient: ["#312E81", "#3730A3", "#4338CA"] },
 };
 
 export function getTimePeriod(hour: number): TimePeriod {

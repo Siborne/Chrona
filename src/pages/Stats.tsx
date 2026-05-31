@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { formatDuration } from "../utils";
+import { getChartColors } from "../colorThemes";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 
@@ -38,12 +39,12 @@ function TrendChart({ days }: { days: number }) {
     return row;
   });
 
-  const COLORS = ["#B4A0FF","#E8A0FF","#A0C0FF","#FFB6C1","#C8A0E0","#D8B0FF","#E0B0F0","#C0B0E8"];
+  const COLORS = getChartColors();
 
-  if (pivoted.length === 0) return <div className="empty-state"><p>暂无数据</p></div>;
+  if (pivoted.length === 0) return <div className="empty-state" style={{ minHeight: 280 }}><p>暂无数据</p></div>;
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
+    <ResponsiveContainer width="100%" height={320}>
       <LineChart data={pivoted} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v.slice(5)} />
         <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}m`} />
@@ -93,19 +94,22 @@ function Heatmap() {
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
 
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const CELL_SIZE = 14;
+  const CELL_GAP = 3;
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 3, overflowX: "auto", paddingBottom: 8 }}>
+      <div style={{ display: "flex", gap: CELL_GAP, overflowX: "auto", paddingBottom: 8, minHeight: CELL_SIZE * 7 + CELL_GAP * 6 + 20 }}>
         {weeks.map((week, wi) => (
-          <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <div key={wi} style={{ display: "flex", flexDirection: "column", gap: CELL_GAP }}>
             {week.map((date, di) => {
-              if (!date) return <div key={di} style={{ width: 14, height: 14 }} />;
+              if (!date) return <div key={di} style={{ width: CELL_SIZE, height: CELL_SIZE }} />;
               const d = dataMap.get(date);
               return (
                 <div
                   key={di}
                   className={`heatmap-cell level-${d?.level ?? 0}`}
+                  style={{ width: CELL_SIZE, height: CELL_SIZE }}
                   title={date + (d ? ` · ${formatDuration(d.duration)}` : "")}
                 />
               );
@@ -142,12 +146,14 @@ export default function Stats() {
         <h2>统计</h2>
       </div>
       <div className="page-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="card">
+        <div className="card" style={{ minHeight: 200 }}>
+          <div className="card-glow" />
           <div className="card-title">年度活跃热力图 · {new Date().getFullYear()}</div>
           <Heatmap />
         </div>
 
-        <div className="card">
+        <div className="card" style={{ minHeight: 400 }}>
+          <div className="card-glow" />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div className="card-title" style={{ margin: 0 }}>使用趋势</div>
             <div style={{ display: "flex", gap: 4 }}>
@@ -161,7 +167,8 @@ export default function Stats() {
           <TrendChart days={days} />
         </div>
 
-        <div className="card">
+        <div className="card" style={{ minHeight: 300 }}>
+          <div className="card-glow" />
           <div className="card-title">累计使用排行</div>
           {loading && <LoadingSpinner />}
           {error && <ErrorBanner message={error} onRetry={() => setRefreshKey(k => k + 1)} />}
