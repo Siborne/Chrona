@@ -222,9 +222,10 @@ function AppTrendChart({ days }: { days: number }) {
   if (loading) return <LoadingSpinner />;
   if (data.length === 0) return <div className="empty-state"><p>暂无数据</p></div>;
 
+  const { chartPalette } = useAppStore();
   const dates = [...new Set(data.map((d) => d.date))].sort();
   const appNames = [...new Set(data.map((d) => d.app_name))].slice(0, 6);
-  const COLORS = getChartColors();
+  const COLORS = getChartColors(chartPalette);
 
   const pivoted = dates.map((date) => {
     const row: Record<string, string | number> = { date: date.slice(5) };

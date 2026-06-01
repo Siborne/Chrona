@@ -2,9 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../store";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { check } from "@tauri-apps/plugin-updater";
-import { X, Trash2, Pencil, Plus } from "lucide-react";
+import { X, Trash2, Pencil, Plus, Image } from "lucide-react";
 import { COLOR_PRESETS, applyColorTheme, accentToGradient } from "../colorThemes";
+import Select from "../components/Select";
+import ColorPicker from "../components/ColorPicker";
 import type { App, Category } from "../types";
 
 const PRESET_COLORS = ["#6366F1","#818CF8","#F43F5E","#10B981","#06B6D4","#D97706","#8B5CF6","#EF4444","#A78BFA","#64748B"];
@@ -33,38 +36,26 @@ function EditAppModal({ app, categories, onSave, onClose }: {
           </div>
           <div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>分类</div>
-            <div style={{ position: "relative" }}>
-              <select
-                className="select"
-                style={{ width: "100%", paddingRight: 36 }}
-                value={catId ?? ""}
-                onChange={(e) => setCatId(e.target.value ? Number(e.target.value) : null)}
-              >
-                <option value="">无分类</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {catId != null && (
-                <span
-                  className="color-dot"
-                  style={{
-                    position: "absolute", right: 34, top: "50%", transform: "translateY(-50%)",
-                    backgroundColor: categories.find(c => c.id === catId)?.color ?? "#888",
-                    color: categories.find(c => c.id === catId)?.color ?? "#888",
-                    pointerEvents: "none",
-                  }}
-                />
-              )}
-            </div>
+            <Select
+              options={[
+                { value: "", label: "无分类" },
+                ...categories.map((c) => ({
+                  value: String(c.id),
+                  label: c.name,
+                  dotColor: c.color ?? "#888",
+                })),
+              ]}
+              value={catId != null ? String(catId) : ""}
+              onChange={(v) => setCatId(v ? Number(v) : null)}
+            />
           </div>
           <div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>颜色</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {PRESET_COLORS.map((c) => (
+              {PRESET_COLORS.slice(0, 10).map((c) => (
                 <button key={c} onClick={() => setColor(c)} aria-label={`选择颜色 ${c}`} style={{ width: 24, height: 24, borderRadius: "50%", backgroundColor: c, cursor: "pointer", outline: color === c ? "2px solid var(--text-primary)" : "none", outlineOffset: 2, border: "none", padding: 0 }} />
               ))}
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="自定义颜色" style={{ width: 24, height: 24, border: "none", padding: 0, cursor: "pointer", borderRadius: "50%" }} />
+              <ColorPicker value={color} onChange={setColor} size={24} />
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
@@ -78,7 +69,7 @@ function EditAppModal({ app, categories, onSave, onClose }: {
 }
 
 export default function SettingsPage() {
-  const { settings, saveSetting, setTheme, theme, apps, categories, loadApps, loadCategories, updateCategory } = useAppStore();
+  const { settings, saveSetting, setTheme, theme, navPosition, setNavPosition, fontFamily, setFontFamily, fontWeight, setFontWeight, bgIntensity, setBgIntensity, chartPalette, setChartPalette, heatmapScheme, setHeatmapScheme, apps, categories, loadApps, loadCategories, updateCategory } = useAppStore();
   const [tab, setTab] = useState<SettingsTab>("tracking");
   const [mergeInterval, setMergeInterval] = useState(settings.merge_interval ?? "30");
   const [tags, setTags] = useState<string[]>(() =>
@@ -98,6 +89,7 @@ export default function SettingsPage() {
   const [resetting, setResetting] = useState(false);
   const [colorPreset, setColorPreset] = useState(settings.color_preset ?? "indigo");
   const [customAccent, setCustomAccent] = useState(settings.custom_accent ?? "#B4A0FF");
+  const [bgImage, setBgImage] = useState(settings.bg_image ?? "");
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const [newCatName, setNewCatName] = useState("");
   const [newCatColor, setNewCatColor] = useState("#B4A0FF");
@@ -292,15 +284,17 @@ export default function SettingsPage() {
       <div className="page-header">
         <h2>设置</h2>
         <div className="page-header-actions">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              className={`btn btn-sm ${tab === t.id ? "btn-primary" : ""}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
+          <div className="segmented-control">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                className={tab === t.id ? "active" : ""}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="page-body">
@@ -399,6 +393,179 @@ export default function SettingsPage() {
 
             <div className="card">
               <div className="card-glow" />
+              <div className="card-title">字体</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                {[
+                  { id: "wenkai", label: "霞鹜文楷" },
+                  { id: "noto", label: "思源黑体" },
+                  { id: "inter", label: "Inter" },
+                  { id: "system", label: "系统默认" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    className={`btn ${fontFamily === f.id ? "btn-primary" : ""}`}
+                    onClick={() => { setFontFamily(f.id as any); saveSetting("font_family", f.id); }}
+                    style={{ fontFamily: f.id === "wenkai" ? "'LXGW WenKai Screen', 'LXGW WenKai'" : f.id === "noto" ? "'Noto Sans SC', 'Noto Sans'" : f.id === "inter" ? "'Inter', sans-serif" : "inherit" }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <div className="card-title" style={{ marginBottom: 8, fontSize: 11 }}>字重</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { value: 500, label: "中等" },
+                  { value: 700, label: "粗体" },
+                ].map((w) => (
+                  <button
+                    key={w.value}
+                    className={`btn ${fontWeight === w.value ? "btn-primary" : ""}`}
+                    onClick={() => { setFontWeight(w.value); saveSetting("font_weight", String(w.value)); }}
+                    style={{ fontWeight: w.value }}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-glow" />
+              <div className="card-title">导航位置</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  className={`btn ${navPosition === "left" ? "btn-primary" : ""}`}
+                  onClick={() => { setNavPosition("left"); saveSetting("nav_position", "left"); }}
+                >
+                  左侧边栏
+                </button>
+                <button
+                  className={`btn ${navPosition === "bottom" ? "btn-primary" : ""}`}
+                  onClick={() => { setNavPosition("bottom"); saveSetting("nav_position", "bottom"); }}
+                >
+                  底部浮动
+                </button>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-glow" />
+              <div className="card-title">背景强度</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(bgIntensity * 100)}
+                  onChange={(e) => {
+                    const v = Number(e.target.value) / 100;
+                    setBgIntensity(v);
+                    saveSetting("bg_intensity", String(v));
+                  }}
+                  style={{ flex: 1, accentColor: "var(--accent)" }}
+                />
+                <span style={{ fontSize: 13, color: "var(--text-secondary)", minWidth: 40, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                  {Math.round(bgIntensity * 100)}%
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+                调整极光光晕和噪点纹理的强度，0% 为纯色背景
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-glow" />
+              <div className="card-title">背景图片</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button className="btn" onClick={async () => {
+                  const path = await open({
+                    filters: [{ name: "图片", extensions: ["jpg", "jpeg", "png", "webp", "gif"] }],
+                    multiple: false,
+                  });
+                  if (!path) return;
+                  try {
+                    const bytes = await readFile(path as string);
+                    const ext = (path as string).split(".").pop()?.toLowerCase() ?? "png";
+                    const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : ext === "gif" ? "image/gif" : "image/png";
+                    let binary = "";
+                    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+                    const base64 = btoa(binary);
+                    const dataUrl = `data:${mime};base64,${base64}`;
+                    setBgImage(dataUrl);
+                    await saveSetting("bg_image", dataUrl);
+                  } catch (e) {
+                    console.error("读取图片失败:", e);
+                  }
+                }}>
+                  <Image size={14} /> 选择图片
+                </button>
+                {bgImage && (
+                  <>
+                    <span style={{ fontSize: 12, color: "var(--text-secondary)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      已设置
+                    </span>
+                    <button className="btn btn-danger btn-sm" onClick={() => { setBgImage(""); saveSetting("bg_image", ""); }}>清除</button>
+                  </>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+                设置后将覆盖极光背景，仅显示自定义图片。图片以 base64 存储在本地设置中。
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-glow" />
+              <div className="card-title">图表调色板</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { id: "theme", label: "主题色" },
+                  { id: "rainbow", label: "彩虹" },
+                  { id: "pastel", label: "柔和" },
+                  { id: "vivid", label: "鲜艳" },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    className={`btn ${chartPalette === p.id ? "btn-primary" : ""}`}
+                    onClick={() => { setChartPalette(p.id as any); saveSetting("chart_palette", p.id); }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-glow" />
+              <div className="card-title">热力图颜色</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {[
+                  { id: "indigo", label: "靛蓝", color: "#6366F1" },
+                  { id: "emerald", label: "翡翠", color: "#10B981" },
+                  { id: "rose", label: "玫瑰", color: "#F43F5E" },
+                  { id: "amber", label: "琥珀", color: "#D97706" },
+                  { id: "cyan", label: "海洋", color: "#06B6D4" },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    className={`btn ${heatmapScheme === s.id ? "btn-primary" : ""}`}
+                    onClick={() => { setHeatmapScheme(s.id as any); saveSetting("heatmap_scheme", s.id); }}
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    <span
+                      style={{
+                        width: 12, height: 12, borderRadius: "50%",
+                        background: s.color,
+                        display: "inline-block",
+                      }}
+                    />
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-glow" />
               <div className="card-title">色彩主题</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
                 {COLOR_PRESETS.map((p) => (
@@ -420,36 +587,16 @@ export default function SettingsPage() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0 0", borderTop: "1px solid var(--hairline)" }}>
                 <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>自定义</span>
-                <label
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "6px 12px 6px 6px",
-                    border: colorPreset === "custom" ? "1px solid var(--accent)" : "1px solid var(--hairline)",
-                    borderRadius: "var(--radius-sm)",
-                    background: "var(--surface-1)",
-                    cursor: "pointer",
-                    transition: "border-color var(--transition)",
-                    position: "relative",
-                  }}
-                >
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 6,
-                    background: colorPreset === "custom" ? customAccent : "#6366F1",
-                    boxShadow: "inset 0 1px 2px rgba(0,0,0,0.1)",
-                    flexShrink: 0,
-                  }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <ColorPicker
+                    value={colorPreset === "custom" ? customAccent : "#6366F1"}
+                    onChange={(c) => { handleCustomColor(c); }}
+                    size={28}
+                  />
                   <span style={{ fontSize: 13, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", fontFamily: "'JetBrains Mono', monospace" }}>
                     {colorPreset === "custom" ? customAccent.toUpperCase() : "选择颜色"}
                   </span>
-                  <input
-                    type="color"
-                    value={colorPreset === "custom" ? customAccent : "#6366F1"}
-                    onChange={(e) => handleCustomColor(e.target.value)}
-                    style={{
-                      position: "absolute", inset: 0, opacity: 0, cursor: "pointer",
-                    }}
-                  />
-                </label>
+                </div>
               </div>
             </div>
           </div>
@@ -507,7 +654,7 @@ export default function SettingsPage() {
               <div className="card-title">分类管理</div>
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 <input className="input" placeholder="新分类名称" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateCategory()} />
-                <input type="color" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)} style={{ width: 40, height: 38, border: "1px solid var(--hairline)", borderRadius: "var(--radius-md)", cursor: "pointer", padding: 2 }} />
+                <ColorPicker value={newCatColor} onChange={setNewCatColor} size={32} />
                 <button className="btn btn-primary" onClick={handleCreateCategory}><Plus size={16} />添加</button>
               </div>
               {categories.length === 0 ? (
@@ -517,7 +664,7 @@ export default function SettingsPage() {
                   {categories.map((c) => (
                     editCatId === c.id ? (
                       <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 20, border: "1px solid var(--accent)", fontSize: 13, background: "var(--surface-1)" }}>
-                        <input type="color" value={editCatColor} onChange={(e) => setEditCatColor(e.target.value)} style={{ width: 22, height: 22, border: "none", borderRadius: 4, cursor: "pointer", padding: 0 }} />
+                        <ColorPicker value={editCatColor} onChange={setEditCatColor} size={22} />
                         <input className="input" value={editCatName} onChange={(e) => setEditCatName(e.target.value)} style={{ width: 80, padding: "2px 6px", fontSize: 12 }} onKeyDown={(e) => { if (e.key === "Enter") { updateCategory(c.id, editCatName, editCatColor); setEditCatId(null); } }} />
                         <button className="btn btn-primary btn-sm" style={{ padding: "2px 8px" }} onClick={() => { updateCategory(c.id, editCatName, editCatColor); setEditCatId(null); }}>✓</button>
                         <button className="btn btn-sm" style={{ padding: "2px 6px" }} onClick={() => setEditCatId(null)}>×</button>

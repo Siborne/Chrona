@@ -12,7 +12,7 @@ import {
 import type { PageId } from "./types";
 import html2canvas from "html2canvas";
 import { applyTimeTheme, getTimeTheme, formatTimeHM } from "./theme";
-import { COLOR_PRESETS, applyColorTheme, accentToGradient } from "./colorThemes";
+import { COLOR_PRESETS, applyColorTheme, accentToGradient, applyHeatmapScheme } from "./colorThemes";
 
 import Overview from "./pages/Overview";
 import Activity from "./pages/Activity";
@@ -87,13 +87,41 @@ function Greeting() {
   );
 }
 
+function FloatingNav() {
+  const { currentPage, setCurrentPage } = useAppStore();
+
+  return (
+    <nav className="floating-nav" role="navigation" aria-label="主导航">
+      {NAV_ITEMS.map((item) => {
+        const Icon = item.icon;
+        const isActive = currentPage === item.id;
+        return (
+          <button
+            key={item.id}
+            className={`floating-nav-item ${isActive ? "active" : ""}`}
+            onClick={() => setCurrentPage(item.id)}
+            aria-label={item.label}
+            aria-current={isActive ? "page" : undefined}
+          >
+            <Icon size={20} strokeWidth={isActive ? 2 : 1.5} />
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 function App() {
-  const { currentPage, setCurrentPage, theme, settings, loadApps, loadCategories, loadSettings, ensureAppColors } =
+  const { currentPage, setCurrentPage, theme, navPosition, setNavPosition, fontFamily, fontWeight, bgIntensity, heatmapScheme, settings, loadApps, loadCategories, loadSettings, ensureAppColors } =
     useAppStore();
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+    document.documentElement.setAttribute("data-font", fontFamily);
+    document.documentElement.style.setProperty("--bg-intensity", String(bgIntensity));
+    document.documentElement.style.setProperty("--font-weight", String(fontWeight));
+  }, [theme, fontFamily, bgIntensity, fontWeight]);
 
   // Apply time-aware accent colors and refresh every 5 minutes
   useEffect(() => {
@@ -101,6 +129,19 @@ function App() {
     const id = setInterval(applyTimeTheme, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Apply background intensity
+  useEffect(() => {
+    const intensity = settings.bg_intensity;
+    if (intensity != null) {
+      document.documentElement.style.setProperty("--bg-intensity", intensity);
+    }
+  }, [settings.bg_intensity]);
+
+  // Apply heatmap scheme
+  useEffect(() => {
+    applyHeatmapScheme(heatmapScheme);
+  }, [heatmapScheme]);
 
   // Apply color theme from settings
   useEffect(() => {
@@ -124,70 +165,86 @@ function App() {
     loadSettings();
   }, [loadApps, loadCategories, loadSettings]);
 
+  // Sync nav_position from settings to store
+  useEffect(() => {
+    const pos = settings.nav_position;
+    if (pos === "left" || pos === "bottom") {
+      setNavPosition(pos);
+    }
+  }, [settings.nav_position, setNavPosition]);
+
   // Assign colors to apps that don't have one (one-time)
   useEffect(() => {
     ensureAppColors();
   }, []);
 
   const PageComponent = PAGE_COMPONENTS[currentPage];
+  const isBottomNav = navPosition === "bottom";
 
   return (
     <>
       <TitleBar />
-      <div className="bg-layer" />
-      <div className="app-layout">
-        <nav className="sidebar" role="navigation" aria-label="主导航">
-          <div className="sidebar-logo">
-            <svg viewBox="0 0 100 100">
-              <defs>
-                <linearGradient id="sbg" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="var(--accent)" />
-                  <stop offset="55%" stopColor="var(--accent)" />
-                  <stop offset="100%" stopColor="var(--accent-soft)" />
-                </linearGradient>
-                <radialGradient id="sshine" cx="30%" cy="25%" r="70%">
-                  <stop offset="0%" stopColor="white" stopOpacity="0.45" />
-                  <stop offset="100%" stopColor="white" stopOpacity="0" />
-                </radialGradient>
-              </defs>
-              <circle cx="50" cy="50" r="44" fill="url(#sbg)" />
-              <circle cx="50" cy="50" r="44" fill="url(#sshine)" />
-              <circle cx="50" cy="50" r="33" fill="none" stroke="white" strokeOpacity="0.95" strokeWidth="4" />
-              <circle cx="50" cy="50" r="38" fill="none" stroke="white" strokeOpacity="0.15" strokeWidth="1.2" />
-              <line x1="50" y1="50" x2="50" y2="28" stroke="white" strokeWidth="4.5" strokeLinecap="round" />
-              <line x1="50" y1="50" x2="68" y2="50" stroke="white" strokeWidth="3.5" strokeLinecap="round" />
-              <circle cx="50" cy="50" r="4" fill="white" />
-              <circle cx="50" cy="50" r="43" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1.5" />
-            </svg>
-          </div>
-          <Greeting />
-          <div className="sidebar-nav">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  className={`nav-item ${currentPage === item.id ? "active" : ""}`}
-                  onClick={() => setCurrentPage(item.id)}
-                  aria-label={item.label}
-                  aria-current={currentPage === item.id ? "page" : undefined}
-                >
-                  <Icon />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="sidebar-footer">
-            <button className="nav-item" onClick={exportScreenshot} aria-label="导出截图">
-              <Download />
-              导出截图
-            </button>
-          </div>
-        </nav>
-        <main className="main-content">
+      <div className="bg-layer">
+        <div className="bg-aurora" />
+        <div className="bg-noise" />
+        <div className="bg-image" style={{ backgroundImage: settings.bg_image ? `url(${settings.bg_image})` : 'none' }} />
+      </div>
+      <div className={`app-layout ${isBottomNav ? "bottom-nav-layout" : ""}`}>
+        {!isBottomNav && (
+          <nav className="sidebar" role="navigation" aria-label="主导航">
+            <div className="sidebar-logo">
+              <svg viewBox="0 0 100 100">
+                <defs>
+                  <linearGradient id="sbg" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="var(--accent)" />
+                    <stop offset="55%" stopColor="var(--accent)" />
+                    <stop offset="100%" stopColor="var(--accent-soft)" />
+                  </linearGradient>
+                  <radialGradient id="sshine" cx="30%" cy="25%" r="70%">
+                    <stop offset="0%" stopColor="white" stopOpacity="0.45" />
+                    <stop offset="100%" stopColor="white" stopOpacity="0" />
+                  </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="44" fill="url(#sbg)" />
+                <circle cx="50" cy="50" r="44" fill="url(#sshine)" />
+                <circle cx="50" cy="50" r="33" fill="none" stroke="white" strokeOpacity="0.95" strokeWidth="4" />
+                <circle cx="50" cy="50" r="38" fill="none" stroke="white" strokeOpacity="0.15" strokeWidth="1.2" />
+                <line x1="50" y1="50" x2="50" y2="28" stroke="white" strokeWidth="4.5" strokeLinecap="round" />
+                <line x1="50" y1="50" x2="68" y2="50" stroke="white" strokeWidth="3.5" strokeLinecap="round" />
+                <circle cx="50" cy="50" r="4" fill="white" />
+                <circle cx="50" cy="50" r="43" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1.5" />
+              </svg>
+            </div>
+            <Greeting />
+            <div className="sidebar-nav">
+              {NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    className={`nav-item ${currentPage === item.id ? "active" : ""}`}
+                    onClick={() => setCurrentPage(item.id)}
+                    aria-label={item.label}
+                    aria-current={currentPage === item.id ? "page" : undefined}
+                  >
+                    <Icon />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="sidebar-footer">
+              <button className="nav-item" onClick={exportScreenshot} aria-label="导出截图">
+                <Download />
+                导出截图
+              </button>
+            </div>
+          </nav>
+        )}
+        <main className={`main-content ${isBottomNav ? "has-bottom-nav" : ""}`}>
           <PageComponent />
         </main>
+        {isBottomNav && <FloatingNav />}
       </div>
     </>
   );
