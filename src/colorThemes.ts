@@ -72,16 +72,6 @@ export function applyColorTheme(g1: string, g2: string) {
       --accent-hover: ${darken(g1, 0.2)};
       --accent-dim: ${accentDimLight};
     }
-    .heatmap-cell.level-1 { background-color: ${rgba(g1, 0.15)}; }
-    .heatmap-cell.level-2 { background-color: ${rgba(g1, 0.35)}; }
-    .heatmap-cell.level-3 { background-color: ${rgba(g1, 0.60)}; }
-    .heatmap-cell.level-4 { background-color: ${g1}; }
-    .bg-layer {
-      background:
-        radial-gradient(ellipse 80% 60% at 15% 10%, ${rgba(g1, 0.07)} 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 85% 85%, ${rgba(g2, 0.04)} 0%, transparent 50%),
-        linear-gradient(160deg, #0C0E14 0%, #07080A 40%, #090A10 70%, #0D0E16 100%);
-    }
   `;
 }
 
@@ -97,8 +87,39 @@ export function accentToGradient(accent: string): [string, string] {
   return [accent, lighten(g2, 0.15)];
 }
 
-// ── Get chart colors from current theme accent ────────────
-export function getChartColors(): string[] {
+// ── Chart palettes ────────────────────────────────────────
+export type ChartPalette = "theme" | "rainbow" | "pastel" | "vivid";
+
+export const CHART_PALETTES: Record<ChartPalette, string[]> = {
+  theme: [], // filled dynamically from accent
+  rainbow: ["#FF6B6B", "#FFA94D", "#FFD43B", "#69DB7C", "#4DABF7", "#748FFC", "#DA77F2", "#F06595"],
+  pastel:  ["#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#E2BAFF", "#FFBAE1", "#FFD4BA"],
+  vivid:   ["#E03131", "#E8590C", "#FCC419", "#40C057", "#228BE6", "#7950F2", "#BE4BDB", "#E64980"],
+};
+
+export type HeatmapScheme = "indigo" | "emerald" | "rose" | "amber" | "cyan";
+
+export interface HeatmapColors {
+  level0: string;
+  level1: string;
+  level2: string;
+  level3: string;
+  level4: string;
+}
+
+export const HEATMAP_SCHEMES: Record<HeatmapScheme, HeatmapColors> = {
+  indigo:  { level0: "var(--surface-3)",     level1: "var(--accent-dim)",     level2: "rgba(99,102,241,0.35)", level3: "rgba(99,102,241,0.60)", level4: "var(--accent)" },
+  emerald: { level0: "var(--surface-3)",     level1: "rgba(16,185,129,0.12)", level2: "rgba(16,185,129,0.35)", level3: "rgba(16,185,129,0.60)", level4: "#10B981" },
+  rose:    { level0: "var(--surface-3)",     level1: "rgba(244,63,94,0.12)",  level2: "rgba(244,63,94,0.35)",  level3: "rgba(244,63,94,0.60)",  level4: "#F43F5E" },
+  amber:   { level0: "var(--surface-3)",     level1: "rgba(217,119,6,0.12)",  level2: "rgba(217,119,6,0.35)",  level3: "rgba(217,119,6,0.60)",  level4: "#D97706" },
+  cyan:    { level0: "var(--surface-3)",     level1: "rgba(6,182,212,0.12)",  level2: "rgba(6,182,212,0.35)",  level3: "rgba(6,182,212,0.60)",  level4: "#06B6D4" },
+};
+
+// ── Get chart colors ──────────────────────────────────────
+export function getChartColors(palette: ChartPalette = "theme"): string[] {
+  if (palette !== "theme") {
+    return CHART_PALETTES[palette];
+  }
   const root = document.documentElement;
   const style = getComputedStyle(root);
   const accent = style.getPropertyValue("--accent").trim() || "#6366F1";
@@ -114,4 +135,15 @@ export function getChartColors(): string[] {
     lighten(accentSoft, 0.24),
     darken(accent, 0.55),
   ];
+}
+
+// ── Apply heatmap scheme ──────────────────────────────────
+export function applyHeatmapScheme(scheme: HeatmapScheme) {
+  const colors = HEATMAP_SCHEMES[scheme];
+  const root = document.documentElement;
+  root.style.setProperty("--heatmap-0", colors.level0);
+  root.style.setProperty("--heatmap-1", colors.level1);
+  root.style.setProperty("--heatmap-2", colors.level2);
+  root.style.setProperty("--heatmap-3", colors.level3);
+  root.style.setProperty("--heatmap-4", colors.level4);
 }

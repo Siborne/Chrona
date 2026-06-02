@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useAppStore } from "../store";
 import type { App, Category } from "../types";
 import { Trash2, Pencil, Plus } from "lucide-react";
+import Select from "../components/Select";
+import ColorPicker from "../components/ColorPicker";
 
 const PRESET_COLORS = ["#B4A0FF","#E8A0FF","#A0C0FF","#FFB6C1","#C8A0E0","#D8B0FF","#E0B0F0","#C0B0E8","#D0C0F0","#B8C8E8"];
 
@@ -26,10 +28,18 @@ function EditAppModal({ app, categories, onSave, onClose }: {
           </div>
           <div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>分类</div>
-            <select className="select" style={{ width: "100%" }} value={catId ?? ""} onChange={(e) => setCatId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">无分类</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <Select
+              options={[
+                { value: "", label: "无分类" },
+                ...categories.map((c) => ({
+                  value: String(c.id),
+                  label: c.name,
+                  dotColor: c.color ?? "#888",
+                })),
+              ]}
+              value={catId != null ? String(catId) : ""}
+              onChange={(v) => setCatId(v ? Number(v) : null)}
+            />
           </div>
           <div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>颜色</div>
@@ -37,7 +47,7 @@ function EditAppModal({ app, categories, onSave, onClose }: {
               {PRESET_COLORS.map((c) => (
                 <button key={c} onClick={() => setColor(c)} aria-label={`选择颜色 ${c}`} style={{ width: 24, height: 24, borderRadius: "50%", backgroundColor: c, cursor: "pointer", outline: color === c ? "2px solid var(--text-primary)" : "none", outlineOffset: 2, border: "none", padding: 0 }} />
               ))}
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="自定义颜色" style={{ width: 24, height: 24, border: "none", padding: 0, cursor: "pointer", borderRadius: "50%" }} />
+              <ColorPicker value={color} onChange={setColor} size={24} />
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
@@ -123,7 +133,7 @@ export default function AppMgmt() {
           <div className="card-title">分类管理</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
             <input className="input" placeholder="新分类名称" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateCategory()} />
-            <input type="color" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)} style={{ width: 40, height: 38, border: "1px solid var(--border)", borderRadius: "var(--radius-md)", cursor: "pointer", padding: 2 }} />
+            <ColorPicker value={newCatColor} onChange={setNewCatColor} size={32} />
             <button className="btn btn-primary" onClick={handleCreateCategory}><Plus size={16} />添加</button>
           </div>
           {categories.length === 0 ? (

@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { formatDuration } from "../utils";
 import { getChartColors } from "../colorThemes";
+import { useAppStore } from "../store";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 
@@ -14,6 +15,7 @@ function TrendChart({ days }: { days: number }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { chartPalette } = useAppStore();
 
   useEffect(() => {
     setLoading(true);
@@ -39,7 +41,7 @@ function TrendChart({ days }: { days: number }) {
     return row;
   });
 
-  const COLORS = getChartColors();
+  const COLORS = getChartColors(chartPalette);
 
   if (pivoted.length === 0) return <div className="empty-state" style={{ minHeight: 280 }}><p>暂无数据</p></div>;
 
@@ -176,31 +178,33 @@ export default function Stats() {
             ranking.length === 0 ? (
               <div className="empty-state"><p>暂无数据</p></div>
             ) : (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>应用</th>
-                    <th>累计时长</th>
-                    <th>会话数</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ranking.map((r, i) => (
-                    <tr key={r.app_id}>
-                      <td style={{ color: "var(--text-muted)", width: 32 }}>{i + 1}</td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span className="color-dot" style={{ backgroundColor: r.app_color }} />
-                          {r.app_name}
-                        </div>
-                      </td>
-                      <td className="duration-text">{formatDuration(r.total_duration)}</td>
-                      <td style={{ color: "var(--text-muted)" }}>{r.session_count}</td>
+              <div style={{ overflowY: "auto", maxHeight: 320 }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>应用</th>
+                      <th>累计时长</th>
+                      <th>会话数</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {ranking.map((r, i) => (
+                      <tr key={r.app_id}>
+                        <td style={{ color: "var(--text-muted)", width: 32 }}>{i + 1}</td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span className="color-dot" style={{ backgroundColor: r.app_color }} />
+                            {r.app_name}
+                          </div>
+                        </td>
+                        <td className="duration-text">{formatDuration(r.total_duration)}</td>
+                        <td style={{ color: "var(--text-muted)" }}>{r.session_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )
           )}
         </div>

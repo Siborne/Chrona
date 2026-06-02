@@ -1,12 +1,22 @@
 import { create } from "zustand";
 import type { App, Category, Session, Theme, Language, PageId } from "../types";
 import { invoke } from "@tauri-apps/api/core";
+import type { ChartPalette, HeatmapScheme } from "../colorThemes";
+
+type NavPosition = "left" | "bottom";
+type FontFamily = "wenkai" | "noto" | "inter" | "system";
 
 interface AppState {
   currentPage: PageId;
   selectedDate: Date;
   theme: Theme;
   language: Language;
+  navPosition: NavPosition;
+  bgIntensity: number;
+  fontFamily: FontFamily;
+  fontWeight: number;
+  chartPalette: ChartPalette;
+  heatmapScheme: HeatmapScheme;
   apps: App[];
   categories: Category[];
   sessions: Session[];
@@ -15,6 +25,12 @@ interface AppState {
   setSelectedDate: (date: Date) => void;
   setTheme: (theme: Theme) => void;
   setLanguage: (language: Language) => void;
+  setNavPosition: (pos: NavPosition) => void;
+  setBgIntensity: (v: number) => void;
+  setFontFamily: (f: FontFamily) => void;
+  setFontWeight: (w: number) => void;
+  setChartPalette: (p: ChartPalette) => void;
+  setHeatmapScheme: (s: HeatmapScheme) => void;
   loadApps: () => Promise<void>;
   loadCategories: () => Promise<void>;
   loadSessions: (date: string) => Promise<void>;
@@ -33,6 +49,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedDate: new Date(),
   theme: (localStorage.getItem("theme") as Theme) || "light",
   language: (localStorage.getItem("language") as Language) || "zh",
+  navPosition: (localStorage.getItem("navPosition") as NavPosition) || "left",
+  bgIntensity: Number(localStorage.getItem("bgIntensity")) || 1,
+  fontFamily: (localStorage.getItem("fontFamily") as FontFamily) || "wenkai",
+  fontWeight: Number(localStorage.getItem("fontWeight")) || 400,
+  chartPalette: (localStorage.getItem("chartPalette") as ChartPalette) || "theme",
+  heatmapScheme: (localStorage.getItem("heatmapScheme") as HeatmapScheme) || "indigo",
   apps: [],
   categories: [],
   sessions: [],
@@ -50,6 +72,39 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLanguage: (language) => {
     localStorage.setItem("language", language);
     set({ language });
+  },
+
+  setNavPosition: (pos) => {
+    localStorage.setItem("navPosition", pos);
+    set({ navPosition: pos });
+  },
+
+  setBgIntensity: (v) => {
+    document.documentElement.style.setProperty("--bg-intensity", String(v));
+    localStorage.setItem("bgIntensity", String(v));
+    set({ bgIntensity: v });
+  },
+
+  setFontFamily: (f) => {
+    localStorage.setItem("fontFamily", f);
+    document.documentElement.setAttribute("data-font", f);
+    set({ fontFamily: f });
+  },
+
+  setFontWeight: (w) => {
+    localStorage.setItem("fontWeight", String(w));
+    document.documentElement.style.setProperty("--font-weight", String(w));
+    set({ fontWeight: w });
+  },
+
+  setChartPalette: (p) => {
+    localStorage.setItem("chartPalette", p);
+    set({ chartPalette: p });
+  },
+
+  setHeatmapScheme: (s) => {
+    localStorage.setItem("heatmapScheme", s);
+    set({ heatmapScheme: s });
   },
 
   loadApps: async () => {
