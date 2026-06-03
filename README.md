@@ -1,5 +1,13 @@
 # Chrona
 
+[![GitHub stars](https://img.shields.io/github/stars/Siborne/Chrona?style=social)](https://github.com/Siborne/Chrona/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Siborne/Chrona?style=social)](https://github.com/Siborne/Chrona/network/members)
+![Rust](https://img.shields.io/badge/Rust-1.0+-000000?logo=rust&logoColor=white)
+![Tauri](https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=black)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
+
 > 本地优先的 Windows 桌面时间追踪器。自动记录当前活跃窗口，生成可视化时间统计与时间线，无需手动操作。
 
 ## ✨ 核心特性
